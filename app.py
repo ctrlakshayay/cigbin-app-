@@ -5,21 +5,29 @@ import numpy as np
 
 # ---------- AI IMPORTS & MODEL LOAD ----------
 # Wrapped in a try-except so the app doesn't crash if libraries are missing locally
+
 try:
     from ultralytics import YOLO
+    import os
     AI_AVAILABLE = True
-except ImportError:
+except Exception as e:
     AI_AVAILABLE = False
+    print("Ultralytics import error:", e)
+
+
+MODEL_LOADED = False
 
 if AI_AVAILABLE:
     try:
-        # Load AI Model (Make sure 'cigarette_model.pt' is in the same folder)
-        model = YOLO("cigarette_model.pt")
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(BASE_DIR, "cigarette_model.pt")
+
+        model = YOLO(model_path)
         MODEL_LOADED = True
+
     except Exception as e:
         MODEL_LOADED = False
-else:
-    MODEL_LOADED = False
+        print("Model loading error:", e)
 
 
 # ---------- PAGE CONFIGURATION ----------
