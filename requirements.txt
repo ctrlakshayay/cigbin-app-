@@ -1,6 +1,6 @@
 streamlit
-pandas
 ultralytics
+torch
 opencv-python
 pillow
 numpy
