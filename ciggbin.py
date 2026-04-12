@@ -35,10 +35,7 @@ if AI_AVAILABLE:
         else:
             st.write("✅ Model file found")
 
-            # 🔥 TEMP TEST (very important)
-            # Replace with your model later
-           model = YOLO("yolov8n.pt")
-            # model = YOLO("yolov8n.pt")  # <-- uncomment this to test if needed
+            model = YOLO("yolov8n.pt")   # ✅ FIXED LINE
 
             MODEL_LOADED = True
             st.success("✅ Model loaded successfully!")
