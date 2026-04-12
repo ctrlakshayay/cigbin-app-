@@ -2,32 +2,65 @@ import streamlit as st
 import pandas as pd
 from PIL import Image
 import numpy as np
+import hashlib
 
+# ---------- AI IMPORTS ----------
 # ---------- AI IMPORTS & MODEL LOAD ----------
-# Wrapped in a try-except so the app doesn't crash if libraries are missing locally
+# ---------- AI IMPORTS & MODEL LOAD ----------
+import os
+import streamlit as st
 
+AI_AVAILABLE = False
+MODEL_LOADED = False
+model = None
+
+# Step 1: Import YOLO
 try:
     from ultralytics import YOLO
-    import os
     AI_AVAILABLE = True
+    st.write("✅ Ultralytics imported successfully")
 except Exception as e:
-    AI_AVAILABLE = False
-    print("Ultralytics import error:", e)
+    st.error(f"❌ Ultralytics import error: {e}")
 
-
-MODEL_LOADED = False
-
+# Step 2: Load model
 if AI_AVAILABLE:
     try:
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         model_path = os.path.join(BASE_DIR, "cigarette_model.pt")
 
-        model = YOLO(model_path)
-        MODEL_LOADED = True
+        st.write(f"📁 Looking for model at: {model_path}")
+
+        if not os.path.exists(model_path):
+            st.error("❌ Model file NOT found!")
+        else:
+            st.write("✅ Model file found")
+
+            # 🔥 TEMP TEST (very important)
+            # Replace with your model later
+            model = YOLO(model_path)
+            # model = YOLO("yolov8n.pt")  # <-- uncomment this to test if needed
+
+            MODEL_LOADED = True
+            st.success("✅ Model loaded successfully!")
 
     except Exception as e:
         MODEL_LOADED = False
+        st.error(f"❌ Model loading error: {e}")
+
+
+# ---------- CACHED MODEL LOADER (CRITICAL FIX) ----------
+@st.cache_resource
+def load_model():
+    """Loads the YOLO model ONCE and caches it for the entire Streamlit session.
+    Without this decorator, the model reloads on every widget interaction,
+    causing the blank screen / freeze bug."""
+    try:
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(BASE_DIR, "cigarette_model.pt")
+        return YOLO(model_path)
+    except Exception as e:
         print("Model loading error:", e)
+        return None
 
 
 # ---------- PAGE CONFIGURATION ----------
@@ -43,13 +76,11 @@ def load_custom_css():
     @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,0,0');
 
     /* 2. Global Typography & Background */
-    /* Safely target typography elements without breaking Streamlit's internal icon components */
     html, body, .stApp, .main, .stMarkdown p, .stText, p, label, h1, h2, h3, h4, h5, h6, li, input {
         font-family: 'Plus Jakarta Sans', sans-serif !important;
     }
     
     /* 3. CRITICAL FIX: Restore Streamlit Icons */
-    /* Streamlit uses material ligatures. We must ensure header/sidebar buttons use the Material font */
     header button span,
     header button i,
     header button *,
@@ -57,17 +88,17 @@ def load_custom_css():
     [data-testid="collapsedControl"] *,
     [data-testid="stSidebarCollapsedControl"] * {
         font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
-        color: #151618 !important; /* Ensure the expand arrow is dark on light background */
+        color: #151618 !important;
     }
 
-    /* Sidebar close button icon (needs to be white on the dark sidebar) */
+    /* Sidebar close button icon */
     [data-testid="stSidebar"] button span,
     [data-testid="stSidebar"] button * {
         font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
         color: #FFFFFF !important;
     }
 
-    /* Main App Background - Very light warm gray/sage matching the design */
+    /* Main App Background */
     .stApp {
         background-color: #EEF0EC !important; 
     }
@@ -77,23 +108,21 @@ def load_custom_css():
         color: #151618 !important; 
     }
 
-    /* 4. Replicate the Dark Sidebar (Left Navigation) */
+    /* 4. Dark Sidebar */
     [data-testid="stSidebar"] {
-        background-color: #131514 !important; /* Deep dark charcoal */
+        background-color: #131514 !important;
         border-right: none !important;
         padding-top: 2rem !important;
     }
     
-    /* Sidebar Text & Elements - Light mode */
     [data-testid="stSidebar"] p, 
     [data-testid="stSidebar"] span, 
     [data-testid="stSidebar"] label, 
     [data-testid="stSidebar"] div {
         color: #E2E4E2 !important;
-        font-family: 'Plus Jakarta Sans', sans-serif; /* Re-apply text font specifically for sidebar text */
+        font-family: 'Plus Jakarta Sans', sans-serif;
     }
     
-    /* Hide the radio button circles in sidebar and style as clean tabs */
     [data-testid="stSidebar"] div[role="radiogroup"] > label {
         padding: 12px 16px !important;
         border-radius: 12px !important;
@@ -104,17 +133,16 @@ def load_custom_css():
         background-color: #2A2C2B !important;
     }
     [data-testid="stSidebar"] .st-b5 { 
-        display: none !important; /* Hide radio circles */
+        display: none !important;
     }
 
-    /* 5. Typography Formatting */
+    /* 5. Typography */
     h1, h2, h3 {
         font-weight: 600 !important;
         letter-spacing: -0.03em !important;
         color: #151618 !important;
     }
     
-    /* Big Bold Titles mimicking the image */
     .hero-title {
         font-size: 3.5rem !important;
         font-weight: 500 !important;
@@ -125,17 +153,17 @@ def load_custom_css():
     }
     .hero-highlight {
         color: #151618 !important;
-        background-color: #D6F169; /* Neon lime from image */
+        background-color: #D6F169;
         padding: 0 12px;
         border-radius: 12px;
         display: inline-block;
     }
 
-    /* 6. Button Styling - Dark pill buttons */
+    /* 6. Button Styling */
     .stButton>button {
         background-color: #131514 !important; 
         color: #FFFFFF !important;
-        border-radius: 50px !important; /* High rounded pill shape */
+        border-radius: 50px !important;
         padding: 12px 28px !important;
         border: none !important;
         font-weight: 500 !important;
@@ -145,7 +173,6 @@ def load_custom_css():
         box-shadow: 0 4px 10px rgba(0,0,0,0.1) !important;
     }
     
-    /* Ensure button text stays white! */
     .stButton>button p, .stButton>button span {
         color: #FFFFFF !important;
     }
@@ -176,7 +203,6 @@ def load_custom_css():
         color: #A0A2A0 !important;
     }
     
-    /* Input labels */
     [data-testid="stWidgetLabel"] p {
         font-weight: 600 !important;
         font-size: 0.9rem !important;
@@ -184,16 +210,16 @@ def load_custom_css():
         margin-bottom: 8px !important;
     }
 
-    /* 8. Static Text Cards (Highly rounded, white) */
+    /* 8. Static Text Cards */
     .custom-card {
         background-color: #FFFFFF;
         padding: 32px;
-        border-radius: 24px !important; /* Large curve matching image */
+        border-radius: 24px !important;
         box-shadow: 0 4px 20px rgba(0,0,0,0.03);
         border: none;
         margin-bottom: 24px;
         line-height: 1.6;
-        color: #151618 !important; /* CRITICAL FIX: Ensures raw text inside the card is dark */
+        color: #151618 !important;
     }
     .custom-card * {
         color: #151618 !important;
@@ -262,10 +288,10 @@ def load_custom_css():
     /* 11. Header overrides */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    .stDeployButton {display: none !important;} /* Hide the deploy button for a cleaner UI */
+    .stDeployButton {display: none !important;}
     [data-testid="stHeader"] {
         background-color: transparent !important;
-        z-index: 99999 !important; /* Ensure header elements stay above content */
+        z-index: 99999 !important;
     }
     hr {
         border-top: 1px solid #DCE0DA !important;
@@ -285,7 +311,6 @@ if "user_name" not in st.session_state: st.session_state.user_name = ""
 if "last_processed_pic" not in st.session_state: st.session_state.last_processed_pic = None
 
 # ---------- SIDEBAR (DARK THEME) ----------
-# Added custom styling to the sidebar title to match the image's logo area
 st.sidebar.markdown('''
 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 30px;">
     <div style="width: 30px; height: 30px; background-color: #FFFFFF; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
@@ -305,13 +330,13 @@ if st.session_state.logged_in:
 
 # Navigation
 page = st.sidebar.radio(
-    "", # Hidden label
+    "",
     ["Login", "Dashboard", "AI Verification", "Rewards", "Impact Tracker", "Leaderboard", "Disposal Bin Map"]
 )
 
 st.sidebar.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
 st.sidebar.markdown(
-    "<div style='font-size: 0.8rem; color: #7A7D7A; text-align: center;'>v2.2 Build (AI Enhanced)</div>", 
+    "<div style='font-size: 0.8rem; color: #7A7D7A; text-align: center;'>v2.3 Build (AI Enhanced)</div>", 
     unsafe_allow_html=True
 )
 
@@ -349,7 +374,6 @@ if page == "Login":
                 st.session_state.user_name = ""
                 st.rerun()
         else:
-            # Replicated Hero Typography from image
             st.markdown('''
             <div class="hero-title">
                 Managing <span class="hero-highlight">Your Waste</span><br>
@@ -419,7 +443,7 @@ elif page == "Dashboard":
         if len(st.session_state.redeemed_rewards) == 0:
             st.markdown("<span style='color: #7A7D7A;'>No operations logged.</span>", unsafe_allow_html=True)
         else:
-            for item in st.session_state.redeemed_rewards[-4:]: # Show last 4
+            for item in st.session_state.redeemed_rewards[-4:]:
                 st.markdown(f'''
                 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; border-bottom: 1px solid #F0F2ED; padding-bottom: 10px;">
                     <div style="width: 8px; height: 8px; background-color: #D6F169; border-radius: 50%;"></div>
@@ -428,7 +452,7 @@ elif page == "Dashboard":
                 ''', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------- AI VERIFICATION ----------
+# ---------- AI VERIFICATION (FULLY FIXED) ----------
 elif page == "AI Verification":
     st.markdown('<div class="hero-title" style="font-size: 2.5rem !important;">Data Transfer & Scan</div>', unsafe_allow_html=True)
     st.write("Utilize your device camera for AI analysis.")
@@ -440,52 +464,66 @@ elif page == "AI Verification":
         Place the waste material clearly in the camera frame. The YOLO AI engine will process the image data and update your statistics upon successful verification.
     </div>
     ''', unsafe_allow_html=True)
-    
+
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        picture = st.camera_input("")
-        
+        picture = st.camera_input("Scan Cigarette Bud")
+
         if picture:
-            if not MODEL_LOADED:
-                st.error("AI Model could not be loaded. Please ensure 'ultralytics' is installed and 'cigarette_model.pt' is in the directory.")
+            if not AI_AVAILABLE:
+                st.error("Ultralytics is not installed. Run: pip install ultralytics")
             else:
-                image = Image.open(picture)
-                image_np = np.array(image)
+                # Fetch cached model — does NOT reload on rerun
+                model = load_model()
 
-                # Run AI detection
-                results = model(image_np)
+                if model is None:
+                    st.error("AI Model could not be loaded. Ensure 'cigarette_model.pt' is in the app directory.")
+                else:
+                    # --- Anti-cheat: MD5 hash of raw image bytes (more reliable than picture.size) ---
+                    # picture.size returns the FILE SIZE IN BYTES (not image dimensions),
+                    # which can collide across different photos of similar file sizes.
+                    # MD5 of the raw bytes is unique per image content.
+                    pic_hash = hashlib.md5(picture.getvalue()).hexdigest()
 
-                detected = False
-                confidence = 0
+                    image = Image.open(picture)
+                    image_np = np.array(image)
 
-                for r in results:
-                    # Explicit class check: Assuming class 0 is 'cigarette butt'
-                    for box in r.boxes:
-                        class_id = int(box.cls[0])
-                        if class_id == 0: 
-                            detected = True
-                            confidence = float(box.conf[0])
-                            break # Found a valid cigarette bud, stop checking boxes
+                    # Run YOLO inference
+                    results = model(image_np)
 
-                    # Show AI bounding boxes
-                    annotated = r.plot()
+                    detected = False
+                    confidence = 0.0
+
+                    for r in results:
+                        for box in r.boxes:
+                            class_id = int(box.cls[0])
+                            # Class 0 = cigarette butt
+                            if class_id == 0:
+                                detected = True
+                                confidence = float(box.conf[0])
+                                break
+                        if detected:
+                            break
+
+                    # Always render annotated bounding-box image
+                    annotated = results[0].plot()
                     st.image(annotated, caption="AI Detection Result", use_container_width=True)
 
-                if detected:
-                    if st.session_state.last_processed_pic != picture.size:
-                        st.session_state.points += 5
-                        st.session_state.butts += 1
-                        st.session_state.last_processed_pic = picture.size
-
-                        st.success(f"AI verification successful! Cigarette bud detected (confidence {confidence:.2f})")
+                    if detected:
+                        if st.session_state.last_processed_pic != pic_hash:
+                            # New unique photo — award points
+                            st.session_state.points += 5
+                            st.session_state.butts += 1
+                            st.session_state.last_processed_pic = pic_hash
+                            st.success(f"AI verification successful! Cigarette bud detected (confidence: {confidence:.2f})")
+                        else:
+                            # Same photo submitted again
+                            st.info("Operation already processed.")
                     else:
-                        st.info("Operation already processed.")
-                else:
-                    st.error("Verification failed — cigarette bud not detected.")
-                
+                        st.error("Verification failed — cigarette bud not detected.")
+
         st.markdown("<br><hr style='border-top: 1px solid #DCE0DA !important;'><br>", unsafe_allow_html=True)
-        
-        # Fallback button styled as a premium button
+
         if st.button("Run Manual Scenario"):
             st.session_state.points += 5
             st.session_state.butts += 1
@@ -526,21 +564,32 @@ elif page == "Rewards":
                 else:
                     st.error("Insufficient variables.")
     
-# ---------- IMPACT & LEADERBOARD & MAP ----------
+# ---------- IMPACT TRACKER, LEADERBOARD, DISPOSAL BIN MAP ----------
 elif page in ["Impact Tracker", "Leaderboard", "Disposal Bin Map"]:
     st.markdown(f'<div class="hero-title" style="font-size: 2.5rem !important;">{page}</div>', unsafe_allow_html=True)
     
     if page == "Impact Tracker":
-        data = pd.DataFrame({"Operation Type": ["Units Processed", "Toxin Mitigation", "Active Users"],
-                             "Data Value": [f"{st.session_state.butts} units", f"{st.session_state.butts * 0.03:.2f}g", "1,250"]})
+        data = pd.DataFrame({
+            "Operation Type": ["Units Processed", "Toxin Mitigation", "Active Users"],
+            "Data Value": [f"{st.session_state.butts} units", f"{st.session_state.butts * 0.03:.2f}g", "1,250"]
+        })
         st.dataframe(data, use_container_width=True, hide_index=True)
         
     elif page == "Leaderboard":
-        leaderboard = pd.DataFrame({"Team Member": ["Arjun", "Priya", "Rahul", "Ananya", "You"],
-                                    "Operations Score": [120, 110, 95, 80, st.session_state.points]})
-        st.dataframe(leaderboard.sort_values(by="Operations Score", ascending=False).reset_index(drop=True), use_container_width=True, hide_index=True)
+        leaderboard = pd.DataFrame({
+            "Team Member": ["Arjun", "Priya", "Rahul", "Ananya", "You"],
+            "Operations Score": [120, 110, 95, 80, st.session_state.points]
+        })
+        st.dataframe(
+            leaderboard.sort_values(by="Operations Score", ascending=False).reset_index(drop=True),
+            use_container_width=True,
+            hide_index=True
+        )
         
     elif page == "Disposal Bin Map":
         st.write("Installed hardware locations.")
-        map_data = pd.DataFrame({"lat": [12.8231, 12.8250, 12.8272], "lon": [80.0444, 80.0460, 80.0431]})
+        map_data = pd.DataFrame({
+            "lat": [12.8231, 12.8250, 12.8272],
+            "lon": [80.0444, 80.0460, 80.0431]
+        })
         st.map(map_data, color="#D6F169")
