@@ -37,7 +37,7 @@ if AI_AVAILABLE:
 
             # 🔥 TEMP TEST (very important)
             # Replace with your model later
-            model = YOLO(model_path)
+           model = YOLO("yolov8n.pt")
             # model = YOLO("yolov8n.pt")  # <-- uncomment this to test if needed
 
             MODEL_LOADED = True
